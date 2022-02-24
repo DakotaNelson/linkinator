@@ -7,6 +7,10 @@ import dash_cytoscape as cyto
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 
+# Overall TODO:
+# - add and remove nodes
+# - flexible "data card" displays node properties when selected
+
 # https://dash.plotly.com/cytoscape
 app = dash.Dash(__name__)
 
@@ -60,16 +64,27 @@ app.layout = html.Div([
         stylesheet=stylesheet,
         elements={}
     ),
-    html.Img(id='tap-node-image', style=styles['img']),
-    html.Pre(id='tap-node-data', style=styles['pre']),
-    html.Hr(),
-    dcc.Upload(
-        id='upload-graph',
-        children=html.Button('Upload Graph'),
-        accept='application/json'
+    html.Div(id='data-card', children=[
+        html.Img(id='tap-node-image', style=styles['img']),
+        html.Pre(
+            id='tap-node-data',
+            style=styles['pre'],
+            contentEditable="true", # idk why this has to be a string
+            hidden=True
+            ),
+        ]
     ),
-    html.Button('Download Graph', id='btn-download-graph'),
-    dcc.Download(id='download-graph'),
+    html.Hr(),
+    html.Div(id='upload-download', children=[
+        dcc.Upload(
+            id='upload-graph',
+            children=html.Button('Upload Graph'),
+            accept='application/json'
+        ),
+        html.Button('Download Graph', id='btn-download-graph'),
+        dcc.Download(id='download-graph'),
+        ]
+    ),
     html.Hr()
 ])
 
@@ -92,7 +107,6 @@ def uploadGraph(contents, data):
     # nothing actually uploaded
     if contents is None or contents == '':
         raise PreventUpdate
-
     # data comes in as something like:
     # data:application/json;base64,longstringofbase64data
     try:
@@ -118,24 +132,29 @@ def renderGraph(ts, data):
     print('rendering')
     return data
 
+# TODO update the store if the graph is edited (circular callback)
+# https://dash.plotly.com/advanced-callbacks#circular-callbacks
+
 # display selected node's raw JSON as text
 @app.callback(Output('tap-node-data', 'children'),
-              Input('main-graph', 'tapNodeData'))
+              Output('tap-node-data', 'hidden'),
+              Input('main-graph', 'selectedNodeData'))
 def displaySelectedNodeData(data):
-    if data is None:
-        return 'Nothing selected'
-    return json.dumps(data, indent=2)
+    if data is None or data == []:
+        return ('Nothing selected', True)
+    return (json.dumps(data, indent=2), False)
+# TODO make editable content sync with data
 
 # display selected node's 'img' attr
-@app.callback(Output('tap-node-image', 'src'),
-              Input('main-graph', 'tapNodeData'))
-def displaySelectedNodeImage(data):
-    if data is None:
-        return None
-    elif 'img' not in data or data['img'] is None:
-        return None
-    else:
-        return data['img']
+# @app.callback(Output('tap-node-image', 'src'),
+#               Input('main-graph', 'selectedNodeData'))
+# def displaySelectedNodeImage(data):
+#     if data is None:
+#         return None
+#     elif 'img' not in data or data['img'] is None:
+#         return None
+#     else:
+#         return data['img']
 
 if __name__ == '__main__':
     app.run_server(debug=True)
